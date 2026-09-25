@@ -107,3 +107,51 @@ export function normalizeCodexUsage(payload) {
         hasPartialData: false,
     };
 }
+
+// Meridian re-serves a Claude account's usage as typed buckets. Utilization is
+// a 0..1 fraction (not a percentage) and resetsAt is epoch milliseconds (not an
+// ISO string). Model-scoped weekly caps get their own bucket, typed by a slug
+// of the model name, so Fable arrives as "seven_day_fable" or similar.
+function meridianRemainingPct(bucket) {
+    const utilization = bucket?.utilization;
+    if (typeof utilization !== 'number' || !Number.isFinite(utilization))
+        return null;
+
+    return clampPercent(100 - utilization * 100);
+}
+
+function epochMsToIso(value) {
+    if (value === null || value === undefined)
+        return null;
+
+    const ms = Number(value);
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+export function normalizeMeridianUsage(payload) {
+    const buckets = Array.isArray(payload?.buckets) ? payload.buckets : [];
+    const session = buckets.find(bucket => bucket?.type === 'five_hour') ?? null;
+    const weekly = buckets.find(bucket => bucket?.type === 'seven_day') ?? null;
+    const fable = buckets.find(bucket =>
+        typeof bucket?.type === 'string'
+        && bucket.type.startsWith('seven_day_')
+        && bucket.type.includes('fable')) ?? null;
+
+    const sessionRemainingPct = meridianRemainingPct(session);
+    const weeklyRemainingPct = meridianRemainingPct(weekly);
+    const fableRemainingPct = meridianRemainingPct(fable);
+
+    return {
+        data: {
+            sessionRemainingPct,
+            weeklyRemainingPct,
+            sessionResetsAtIso: epochMsToIso(session?.resetsAt),
+            weeklyResetsAtIso: epochMsToIso(weekly?.resetsAt),
+            fableRemainingPct,
+            fableResetsAtIso: epochMsToIso(fable?.resetsAt),
+        },
+        hasSessionUsage: sessionRemainingPct !== null,
+        hasWeeklyUsage: weeklyRemainingPct !== null,
+        hasFableUsage: fableRemainingPct !== null,
+    };
+}

@@ -111,3 +111,59 @@ export function readCodexUsage(payload) {
         },
     };
 }
+
+// -------------------------------------------------------------- Meridian ----
+
+// Meridian proxies a Claude subscription and re-serves Anthropic's usage as a
+// list of typed buckets. Two differences from Claude's own payload matter:
+// utilization is a 0..1 fraction rather than a percentage, and resets are
+// epoch milliseconds rather than ISO strings. Model-scoped weekly caps arrive
+// as their own bucket, typed by a slug of the model name ("seven_day_fable").
+function meridianUsedPercent(bucket) {
+    const utilization = bucket?.utilization;
+
+    return typeof utilization === 'number' && Number.isFinite(utilization)
+        ? utilization * FULL
+        : null;
+}
+
+function isoFromEpochMs(value) {
+    const ms = Number(value);
+
+    if (value === null || value === undefined || !Number.isFinite(ms))
+        return null;
+
+    return new Date(ms).toISOString();
+}
+
+export function readMeridianUsage(payload) {
+    const buckets = Array.isArray(payload?.buckets) ? payload.buckets : [];
+    const bucketOfType = type => buckets.find(bucket => bucket?.type === type) ?? null;
+
+    const session = bucketOfType('five_hour');
+    const weekly = bucketOfType('seven_day');
+    const fable = buckets.find(bucket =>
+        typeof bucket?.type === 'string'
+        && bucket.type.startsWith('seven_day_')
+        && bucket.type.includes('fable')) ?? null;
+
+    const sessionUsed = meridianUsedPercent(session);
+    const weeklyUsed = meridianUsedPercent(weekly);
+    const fableUsed = meridianUsedPercent(fable);
+
+    return {
+        data: {
+            sessionRemainingPct: sessionUsed === null ? null : remainingFrom(sessionUsed),
+            weeklyRemainingPct: weeklyUsed === null ? null : remainingFrom(weeklyUsed),
+            sessionResetsAtIso: isoFromEpochMs(session?.resetsAt),
+            weeklyResetsAtIso: isoFromEpochMs(weekly?.resetsAt),
+            fableRemainingPct: fableUsed === null ? null : remainingFrom(fableUsed),
+            fableResetsAtIso: isoFromEpochMs(fable?.resetsAt),
+        },
+        present: {
+            session: sessionUsed !== null,
+            weekly: weeklyUsed !== null,
+            fable: fableUsed !== null,
+        },
+    };
+}

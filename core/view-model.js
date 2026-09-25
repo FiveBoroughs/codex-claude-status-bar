@@ -37,6 +37,16 @@ const SERVICES = [
             {label: 'Fable', pctField: 'fableRemainingPct', resetField: 'fableResetsAtIso', optional: 'fable'},
         ],
     },
+    {
+        key: 'meridian',
+        name: 'Meridian',
+        windows: [
+            {label: 'Session', pctField: 'sessionRemainingPct', resetField: 'sessionResetsAtIso'},
+            {label: 'Weekly', pctField: 'weeklyRemainingPct', resetField: 'weeklyResetsAtIso'},
+            // Only assembled when Meridian's own Fable toggle is on.
+            {label: 'Fable', pctField: 'fableRemainingPct', resetField: 'fableResetsAtIso', optional: 'meridian-fable'},
+        ],
+    },
 ];
 
 const WARNINGS = {
@@ -73,7 +83,10 @@ export function buildUsageViewModel(summary, options = {}) {
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
 
     // Which optional windows the user has switched on.
-    const enabled = new Set(options.showClaudeFable ? ['fable'] : []);
+    const enabled = new Set([
+        ...(options.showClaudeFable ? ['fable'] : []),
+        ...(options.showMeridianFable ? ['meridian-fable'] : []),
+    ]);
 
     const services = SERVICES.map(service => {
         const state = summary?.providers?.[service.key] ?? null;

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {readClaudeUsage, readCodexUsage} from '../core/normalize.js';
+import {readClaudeUsage, readCodexUsage, readMeridianUsage} from '../core/normalize.js';
 
 // ---------------------------------------------------------------- Claude ----
 
@@ -142,4 +142,36 @@ test('two windows of the same class do not overwrite each other', () => {
 
     // First one wins; the second has nowhere sensible to go.
     assert.equal(data.sessionRemainingPct, 90);
+});
+
+// -------------------------------------------------------------- Meridian ----
+
+test('meridian fractions and epoch-ms resets become remaining % and ISO', () => {
+    const {data, present} = readMeridianUsage({
+        buckets: [
+            {type: 'five_hour', utilization: 0.13, resetsAt: Date.parse('2026-07-27T16:20:00Z')},
+            {type: 'seven_day', utilization: 0.21, resetsAt: Date.parse('2026-08-01T00:00:00Z')},
+            {type: 'seven_day_fable', utilization: 0.5, resetsAt: Date.parse('2026-08-02T00:00:00Z')},
+        ],
+    });
+
+    assert.equal(Math.round(data.sessionRemainingPct), 87);
+    assert.equal(Math.round(data.weeklyRemainingPct), 79);
+    assert.equal(data.fableRemainingPct, 50);
+    assert.equal(data.sessionResetsAtIso, '2026-07-27T16:20:00.000Z');
+    assert.equal(data.fableResetsAtIso, '2026-08-02T00:00:00.000Z');
+    assert.deepEqual(present, {session: true, weekly: true, fable: true});
+});
+
+test('a meridian bucket with null utilization counts as absent, not full', () => {
+    const {data, present} = readMeridianUsage({
+        buckets: [
+            {type: 'five_hour', utilization: null, resetsAt: null},
+            {type: 'seven_day', utilization: 0.2, resetsAt: null},
+        ],
+    });
+
+    assert.equal(data.sessionRemainingPct, null);
+    assert.equal(data.weeklyResetsAtIso, null);
+    assert.deepEqual(present, {session: false, weekly: true, fable: false});
 });

@@ -1,0 +1,9 @@
+# Binary paths the Privacy Filter pre-commit hook deliberately does not scan.
+# No text extraction exists for raster/binary formats, so an unlisted binary
+# blocks the commit rather than passing unscanned. fnmatch patterns, matched
+# against both the repo-relative path and the basename.
+#
+# Panel icons recoloured from Meridian's public tray template: opaque image
+# data, no text to leak.
+src/icons/meridian.png
+src/icons/meridian-mono.png

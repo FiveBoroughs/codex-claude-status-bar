@@ -27,6 +27,10 @@ plan — the extension drops the window instead of printing `5h --`.*
 ## Features
 
 - **Both providers, both windows** — Claude and Codex, session (5h) + weekly (7d).
+- **Meridian** — a third, separate provider for a self-hosted
+  [Meridian](https://github.com/rynfar/opencode-claude-max-proxy) proxy: reads the proxied
+  Claude account's usage from its `/v1/usage/quota` endpoint, no credentials
+  needed on this machine.
 - **At-a-glance colour** — green ≥ 70 %, yellow ≥ 30 %, red below.
 - **Detail popup** — per-window remaining %, reset countdown, manual refresh.
 - **Compact panel** — both providers side by side, each as icon + `5h X% / 7d Y%`.
@@ -103,14 +107,23 @@ Click the panel indicator to open the popup; the settings live at the bottom of
 that menu.
 
 The top bar always shows each provider as *icon + percentages*; everything else
-is per provider, under the **Claude** and **Codex** submenus:
+is per provider, under the **Claude**, **Codex** and **Meridian** submenus:
 
 | Option | What it does |
 | --- | --- |
 | **Show in top bar** | Per provider. Off hides that provider's icon and percentages from the bar; its popup section stays. A provider also hides itself while it has no data. |
 | **5h + 7d / 5h only / 7d only** | Per provider — which windows that provider contributes to the bar. Default `5h + 7d`. A window the provider does not report is dropped rather than shown as `--`. |
-| **Show Fable usage** (Claude) | Adds a `F Z%` segment to the Claude top-bar group and a **Fable** row in the popup. Reads Claude's model-scoped weekly cap. Off by default; the segment appears only when your account reports a Fable limit. |
+| **Show Fable usage** (Claude, Meridian) | Adds a `F Z%` segment to that provider's top-bar group and a **Fable** row in the popup. Reads the model-scoped weekly cap. Off by default; the segment appears only when the account reports a Fable limit. |
 | **Icon** (Claude) | Starburst (Claude) vs. bracketed dots (Claude Code) mark. |
+
+Meridian's address has no menu entry; it defaults to
+`http://127.0.0.1:3456/` and is changed with GSettings (picked up on the
+next poll):
+
+```bash
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/codex-claude-status-bar@ondrejbecva.cz/schemas \
+  set org.gnome.shell.extensions.codex-claude-status-bar meridian-url 'http://host:3456/'
+```
 
 Global toggles sit directly in the menu:
 

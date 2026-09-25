@@ -30,8 +30,8 @@ const serviceNamed = (vm, key) => vm.services.find(s => s.key === key);
 test('services come out in popup order and are identified by key', () => {
     const vm = buildUsageViewModel(SUMMARY, {now: NOW});
 
-    assert.deepEqual(vm.services.map(s => s.key), ['codex', 'claude']);
-    assert.deepEqual(vm.services.map(s => s.name), ['Codex', 'Claude']);
+    assert.deepEqual(vm.services.map(s => s.key), ['codex', 'claude', 'meridian']);
+    assert.deepEqual(vm.services.map(s => s.name), ['Codex', 'Claude', 'Meridian']);
 });
 
 test('window figures are rounded and phrased for display', () => {
@@ -101,7 +101,7 @@ test('an empty summary still produces a drawable view model', () => {
     for (const summary of [null, undefined, {}, {providers: {}}]) {
         const vm = buildUsageViewModel(summary, {now: NOW});
 
-        assert.equal(vm.services.length, 2);
+        assert.equal(vm.services.length, 3);
         assert.equal(vm.services[0].windows.length, 2);
         assert.equal(vm.services[0].windows[0].remainingText, '-- left');
         assert.equal(vm.lastUpdate, 'Next update in --');

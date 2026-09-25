@@ -25,6 +25,7 @@ const MIN_RESET_STEP_PCT = 1;
 const PROVIDER_LABELS = {
     claude: 'Claude',
     codex: 'Codex',
+    meridian: 'Meridian',
 };
 
 const WINDOWS = [

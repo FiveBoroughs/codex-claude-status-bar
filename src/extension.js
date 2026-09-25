@@ -14,6 +14,7 @@ import {createScheduler, DEFAULT_POLL_INTERVAL_MS} from './lib/core/scheduler.js
 import {createThresholdNotifier} from './lib/core/notifications.js';
 import {createClaudeProvider} from './lib/providers/claude.js';
 import {createCodexProvider} from './lib/providers/codex.js';
+import {createMeridianProvider} from './lib/providers/meridian.js';
 import {readTextFile} from './lib/runtime/fs.js';
 import {createFetch} from './lib/runtime/fetch.js';
 import {buildUsageViewModel} from './lib/ui/render.js';
@@ -216,8 +217,15 @@ class UsageIndicator extends PanelMenu.Button {
 
         this._claudePanel = buildProviderPanelGroup(extensionPath, this._claudeIconBasename(), true);
         this._codexPanel = buildProviderPanelGroup(extensionPath, this._codexIconBasename());
+        this._meridianPanel = buildProviderPanelGroup(extensionPath, this._meridianIconBasename(), true);
 
         this._panelDivider = new St.Label({
+            text: ' │ ',
+            style_class: 'usage-panel-divider',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        this._meridianDivider = new St.Label({
             text: ' │ ',
             style_class: 'usage-panel-divider',
             y_align: Clutter.ActorAlign.CENTER,
@@ -226,6 +234,8 @@ class UsageIndicator extends PanelMenu.Button {
         this._panelBox.add_child(this._claudePanel.group);
         this._panelBox.add_child(this._panelDivider);
         this._panelBox.add_child(this._codexPanel.group);
+        this._panelBox.add_child(this._meridianDivider);
+        this._panelBox.add_child(this._meridianPanel.group);
 
         this._fallbackLabel = new St.Label({
             text: '--',
@@ -266,10 +276,13 @@ class UsageIndicator extends PanelMenu.Button {
         for (const key of [
             'panel-colorize',
             'show-claude-fable',
+            'show-meridian-fable',
             'show-claude',
             'show-codex',
+            'show-meridian',
             'claude-panel-windows',
             'codex-panel-windows',
+            'meridian-panel-windows',
         ]) {
             this._panelSettingIds.push(this._settings.connect(`changed::${key}`, () => {
                 this._updateProviderOrnaments();
@@ -304,6 +317,12 @@ class UsageIndicator extends PanelMenu.Button {
         return `codex${this._iconStyleSuffix()}.svg`;
     }
 
+    // Meridian's macOS tray template, recoloured: brand gradient for 'color',
+    // white for 'mono' (the black template itself vanishes on the dark bar).
+    _meridianIconBasename() {
+        return `meridian${this._iconStyleSuffix()}.png`;
+    }
+
     _refreshIconStyles() {
         setInlineStyle(
             this._claudePanel.icon,
@@ -312,6 +331,10 @@ class UsageIndicator extends PanelMenu.Button {
         setInlineStyle(
             this._codexPanel.icon,
             iconStyleForFile(this._extensionPath, this._codexIconBasename()),
+        );
+        setInlineStyle(
+            this._meridianPanel.icon,
+            iconStyleForFile(this._extensionPath, this._meridianIconBasename()),
         );
     }
 
@@ -358,6 +381,10 @@ class UsageIndicator extends PanelMenu.Button {
         this._claudeSection = createServiceSection(3);
         this._claudeSection.nameLabel.text = 'Claude';
 
+        // Meridian fronts a Claude account, so it can report Fable too.
+        this._meridianSection = createServiceSection(3);
+        this._meridianSection.nameLabel.text = 'Meridian';
+
         const separator = new St.Widget({style_class: 'usage-separator'});
         separator.set_x_expand(true);
 
@@ -373,6 +400,7 @@ class UsageIndicator extends PanelMenu.Button {
 
         this._popupBox.add_child(this._codexSection.container);
         this._popupBox.add_child(this._claudeSection.container);
+        this._popupBox.add_child(this._meridianSection.container);
         this._popupBox.add_child(separator);
         this._popupBox.add_child(footerRow);
 
@@ -431,6 +459,13 @@ class UsageIndicator extends PanelMenu.Button {
             provider: 'codex',
             showKey: 'show-codex',
             windowsKey: 'codex-panel-windows',
+        });
+        this._meridianSubmenu = this._buildProviderSubmenu({
+            title: 'Meridian',
+            provider: 'meridian',
+            showKey: 'show-meridian',
+            windowsKey: 'meridian-panel-windows',
+            extras: submenu => this._addMeridianExtras(submenu),
         });
     }
 
@@ -509,6 +544,20 @@ class UsageIndicator extends PanelMenu.Button {
         this._updateClaudeIconOrnaments();
     }
 
+    _addMeridianExtras(submenu) {
+        submenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const fableItem = new PopupMenu.PopupSwitchMenuItem(
+            'Show Fable usage',
+            this._settings.get_boolean('show-meridian-fable'),
+        );
+        this._meridianFableToggleSignalId = fableItem.connect('toggled', (_item, state) => {
+            this._settings.set_boolean('show-meridian-fable', state);
+        });
+        this._meridianFableItem = fableItem;
+        submenu.menu.addMenuItem(fableItem);
+    }
+
     _updateWindowOrnaments(provider, windowsKey) {
         const current = this._settings.get_string(windowsKey);
         for (const item of this._windowItems[provider] ?? []) {
@@ -528,10 +577,13 @@ class UsageIndicator extends PanelMenu.Button {
 
         this._updateWindowOrnaments('claude', 'claude-panel-windows');
         this._updateWindowOrnaments('codex', 'codex-panel-windows');
+        this._updateWindowOrnaments('meridian', 'meridian-panel-windows');
 
         this._showItems.claude?.setToggleState(this._settings.get_boolean('show-claude'));
         this._showItems.codex?.setToggleState(this._settings.get_boolean('show-codex'));
+        this._showItems.meridian?.setToggleState(this._settings.get_boolean('show-meridian'));
         this._fableItem?.setToggleState(this._settings.get_boolean('show-claude-fable'));
+        this._meridianFableItem?.setToggleState(this._settings.get_boolean('show-meridian-fable'));
         this._colorizeItem?.setToggleState(this._settings.get_boolean('panel-colorize'));
     }
 
@@ -595,8 +647,8 @@ class UsageIndicator extends PanelMenu.Button {
         // The separator only earns its place between two visible percentages.
         panel.slash.visible = showSession && showWeekly;
 
-        // Optional Fable segment (Claude group only). The Fable window is
-        // present in the view-model only when the toggle is on.
+        // Optional Fable segment (Claude and Meridian groups). The Fable
+        // window is present in the view-model only when the toggle is on.
         if (panel.fableLabel) {
             const fableWindow = svc.windows[2];
             if (fableWindow && !fableWindow.remainingText.startsWith('--')) {
@@ -636,6 +688,7 @@ class UsageIndicator extends PanelMenu.Button {
 
         const codex = vm.services[0];
         const claude = vm.services[1];
+        const meridian = vm.services[2];
 
         const showClaude = this._applyProviderPanel(
             this._claudePanel, claude, colorize, 'show-claude', 'claude-panel-windows',
@@ -643,10 +696,14 @@ class UsageIndicator extends PanelMenu.Button {
         const showCodex = this._applyProviderPanel(
             this._codexPanel, codex, colorize, 'show-codex', 'codex-panel-windows',
         );
+        const showMeridian = this._applyProviderPanel(
+            this._meridianPanel, meridian, colorize, 'show-meridian', 'meridian-panel-windows',
+        );
 
         this._panelDivider.visible = showClaude && showCodex;
+        this._meridianDivider.visible = showMeridian && (showClaude || showCodex);
 
-        if (!showClaude && !showCodex) {
+        if (!showClaude && !showCodex && !showMeridian) {
             this._panelBox.hide();
             this._fallbackLabel.show();
             setText(this._fallbackLabel, '--');
@@ -661,6 +718,7 @@ class UsageIndicator extends PanelMenu.Button {
             now: Date.now(),
             pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
             showClaudeFable: this._settings.get_boolean('show-claude-fable'),
+            showMeridianFable: this._settings.get_boolean('show-meridian-fable'),
         }));
     }
 
@@ -670,6 +728,7 @@ class UsageIndicator extends PanelMenu.Button {
             now: Date.now(),
             pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
             showClaudeFable: this._settings.get_boolean('show-claude-fable'),
+            showMeridianFable: this._settings.get_boolean('show-meridian-fable'),
         }));
     }
 
@@ -681,7 +740,7 @@ class UsageIndicator extends PanelMenu.Button {
         if (!this._popupBuilt)
             return;
 
-        const sections = [this._codexSection, this._claudeSection];
+        const sections = [this._codexSection, this._claudeSection, this._meridianSection];
 
         for (let i = 0; i < vm.services.length; i++) {
             const svc = vm.services[i];
@@ -690,7 +749,7 @@ class UsageIndicator extends PanelMenu.Button {
             setText(section.nameLabel, svc.name);
 
             // A section may own more widgets than the view-model has windows
-            // (Claude's Fable row is optional) — hide the surplus.
+            // (the Fable row is optional) — hide the surplus.
             for (let j = 0; j < section.windows.length; j++) {
                 const w = svc.windows[j];
                 const widgets = section.windows[j];
@@ -772,6 +831,11 @@ class UsageIndicator extends PanelMenu.Button {
             this._fableToggleSignalId = null;
         }
 
+        if (this._meridianFableToggleSignalId && this._meridianFableItem) {
+            this._meridianFableItem.disconnect(this._meridianFableToggleSignalId);
+            this._meridianFableToggleSignalId = null;
+        }
+
         if (this._resetNotifyToggleSignalId && this._resetNotifyItem) {
             this._resetNotifyItem.disconnect(this._resetNotifyToggleSignalId);
             this._resetNotifyToggleSignalId = null;
@@ -797,6 +861,10 @@ export default class UsageLimitsExtension extends Extension {
             readTextFile: fileReader,
         });
         this._settings = this.getSettings();
+        const meridian = createMeridianProvider({
+            fetch: fetchImpl,
+            getBaseUrl: () => this._settings?.get_string('meridian-url'),
+        });
 
         this._thresholdNotifier = createThresholdNotifier({
             notifyFn: (title, body, providerKey) => {
@@ -806,7 +874,7 @@ export default class UsageLimitsExtension extends Extension {
         });
 
         this._scheduler = createScheduler({
-            providers: {claude, codex},
+            providers: {claude, codex, meridian},
             onUpdate: (summary) => {
                 this._indicator?.render(summary);
                 this._thresholdNotifier?.evaluate(summary);
@@ -822,6 +890,9 @@ export default class UsageLimitsExtension extends Extension {
     // carry a custom icon — own the source so notifications wear the provider's
     // mark instead of the default bell.
     _notificationIcon(providerKey) {
+        if (providerKey === 'meridian')
+            return Gio.icon_new_for_string(`${this.path}/icons/meridian.png`);
+
         const basename = providerKey === 'codex'
             ? 'codex.svg'
             : this._settings?.get_string('claude-icon') === 'code'

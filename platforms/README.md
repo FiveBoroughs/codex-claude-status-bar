@@ -35,14 +35,17 @@ The `3m` in the filename *is* the refresh interval — rename the file to
 `SHOW_FABLE = true` at the top of the plugin.
 
 Credentials are read from the same paths the CLIs already write:
-`~/.claude/.credentials.json` and `~/.codex/auth.json`.
+`~/.claude/.credentials.json` and `~/.codex/auth.json`. Meridian needs none;
+set `MERIDIAN_URL` at the top of the plugin (or in the environment) if the
+proxy is not at the default `http://127.0.0.1:3456/`.
 
 ## Any OS — command line
 
 ```bash
 node platforms/cli/usage.js          # human readable
 node platforms/cli/usage.js --json   # the raw summary
-node platforms/cli/usage.js --fable  # include Claude's Fable cap
+node platforms/cli/usage.js --fable  # include the Fable cap (Claude and Meridian)
+MERIDIAN_URL=http://host:3456/ node platforms/cli/usage.js  # point at another Meridian
 ```
 
 Exits non-zero when no provider returned usable data, so a caller can tell

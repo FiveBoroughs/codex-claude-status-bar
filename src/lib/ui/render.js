@@ -141,14 +141,17 @@ export function buildUsageViewModel(summary, deps = {}) {
     const version = deps.version ?? VERSION;
     const pollIntervalMs = deps.pollIntervalMs ?? 180_000;
     const showClaudeFable = deps.showClaudeFable ?? false;
+    const showMeridianFable = deps.showMeridianFable ?? false;
 
     const claude = summary?.providers?.claude ?? null;
     const codex = summary?.providers?.codex ?? null;
+    const meridian = summary?.providers?.meridian ?? null;
 
     return {
         services: [
             buildServiceViewModel('Codex', codex?.data, codex?.code, now),
             buildServiceViewModel('Claude', claude?.data, claude?.code, now, {includeFable: showClaudeFable}),
+            buildServiceViewModel('Meridian', meridian?.data, meridian?.code, now, {includeFable: showMeridianFable}),
         ],
         version,
         lastUpdate: formatNextUpdate(summary?.lastUpdatedAtIso, pollIntervalMs, now),

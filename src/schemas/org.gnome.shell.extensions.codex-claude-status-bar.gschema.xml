@@ -27,6 +27,22 @@
         The Codex section stays in the popup.
       </description>
     </key>
+    <key name="show-meridian" type="b">
+      <default>true</default>
+      <summary>Show the Meridian group in the panel</summary>
+      <description>
+        When false, the Meridian icon and percentages are hidden from the top
+        bar. The Meridian section stays in the popup.
+      </description>
+    </key>
+    <key name="meridian-url" type="s">
+      <default>'http://127.0.0.1:3456/'</default>
+      <summary>Meridian base URL</summary>
+      <description>
+        Where the Meridian proxy listens. Usage is read from
+        /v1/usage/quota under this URL. Takes effect on the next poll.
+      </description>
+    </key>
     <key name="claude-panel-windows" type="s">
       <default>'both'</default>
       <summary>Which Claude windows to show in the panel</summary>
@@ -37,6 +53,13 @@
     <key name="codex-panel-windows" type="s">
       <default>'both'</default>
       <summary>Which Codex windows to show in the panel</summary>
+      <description>
+        'both' shows 5h and 7d, 'session' shows only 5h, 'weekly' shows only 7d.
+      </description>
+    </key>
+    <key name="meridian-panel-windows" type="s">
+      <default>'both'</default>
+      <summary>Which Meridian windows to show in the panel</summary>
       <description>
         'both' shows 5h and 7d, 'session' shows only 5h, 'weekly' shows only 7d.
       </description>
@@ -64,6 +87,15 @@
         When true, adds a "Fable" usage row to the Claude section of the popup
         and an extra Fable percentage to the Claude panel group. Reads the
         model-scoped weekly limit whose model display name is "Fable".
+      </description>
+    </key>
+    <key name="show-meridian-fable" type="b">
+      <default>false</default>
+      <summary>Show Meridian Fable model-scoped usage</summary>
+      <description>
+        When true, adds a "Fable" usage row to the Meridian section of the popup
+        and an extra Fable percentage to the Meridian panel group. Reads the
+        model-scoped weekly bucket Meridian reports for Fable.
       </description>
     </key>
     <key name="icon-style" type="s">

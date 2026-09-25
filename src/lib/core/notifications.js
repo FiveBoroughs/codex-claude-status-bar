@@ -13,6 +13,7 @@ const MIN_RESET_STEP_PCT = 1;
 const PROVIDERS = [
     {key: 'claude', label: 'Claude'},
     {key: 'codex', label: 'Codex'},
+    {key: 'meridian', label: 'Meridian'},
 ];
 
 const WINDOWS = [

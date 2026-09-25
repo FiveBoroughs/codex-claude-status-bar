@@ -9,9 +9,11 @@
 //
 //   node platforms/cli/usage.js
 //   node platforms/cli/usage.js --json
+//   MERIDIAN_URL=http://host:port/ node platforms/cli/usage.js
 
 import {createClaudeProvider} from '../../core/providers/claude.js';
 import {createCodexProvider} from '../../core/providers/codex.js';
+import {createMeridianProvider} from '../../core/providers/meridian.js';
 import {createProviderSlot} from '../../core/provider-slot.js';
 import {summarize} from '../../core/summary.js';
 import {buildUsageViewModel} from '../../core/view-model.js';
@@ -26,7 +28,11 @@ async function collect() {
     const at = new Date().toISOString();
 
     const slots = await Promise.all(
-        [createClaudeProvider(deps), createCodexProvider(deps)].map(async provider => {
+        [
+            createClaudeProvider(deps),
+            createCodexProvider(deps),
+            createMeridianProvider({fetch, baseUrl: process.env.MERIDIAN_URL}),
+        ].map(async provider => {
             const slot = createProviderSlot(provider.name);
 
             try {
@@ -43,7 +49,12 @@ async function collect() {
 }
 
 function toText(summary) {
-    const viewModel = buildUsageViewModel(summary, {now: Date.now(), showClaudeFable: showFable});
+    // Meridian fronts a Claude account, so `--fable` covers its Fable cap too.
+    const viewModel = buildUsageViewModel(summary, {
+        now: Date.now(),
+        showClaudeFable: showFable,
+        showMeridianFable: showFable,
+    });
     const lines = [];
 
     for (const service of viewModel.services) {
