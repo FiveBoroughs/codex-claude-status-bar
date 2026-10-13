@@ -106,3 +106,30 @@ test('a failure renders something actionable instead of a blank bar', () => {
     assert.equal(output.includes('stack line'), false);
     assert.match(output, /Refresh \| refresh=true/);
 });
+
+test('an exhausted weekly limit shows only the weekly window until it returns', () => {
+    const data = {
+        sessionRemainingPct: 100,
+        weeklyRemainingPct: 0,
+        weeklyResetsAtIso: '2026-07-29T12:00:00Z',
+    };
+    const summary = {providers: {meridian: {code: 'OK', data}}};
+    // The dropdown section for one provider, from its heading to the end of
+    // its block, so another provider's rows cannot mask a stray Session row.
+    const meridianSection = output => {
+        const rest = output.slice(output.indexOf('\nMeridian'));
+        return rest.slice(0, rest.indexOf('\n---'));
+    };
+
+    const blocked = render(summary);
+    assert.equal(menuBar(blocked), 'Meridian 7d 0%');
+    assert.match(meridianSection(blocked), /Weekly {2}0% left · Resets in 2d/);
+    assert.equal(meridianSection(blocked).includes('Session'), false);
+    assert.equal(menuBar(blocked).includes('5h'), false);
+
+    data.weeklyRemainingPct = 50;
+    const restored = render(summary);
+    assert.equal(menuBar(restored), 'Meridian 5h 100% / 7d 50%');
+    assert.match(meridianSection(restored), /Session {2}100% left/);
+    assert.match(meridianSection(restored), /Weekly {2}50% left · Resets in 2d/);
+});

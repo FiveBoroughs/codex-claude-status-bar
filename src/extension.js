@@ -618,27 +618,34 @@ class UsageIndicator extends PanelMenu.Button {
     }
 
     _formatPctText(window) {
-        if (window.remainingText.startsWith('--'))
+        if (!window || window.remainingText.startsWith('--'))
             return '--';
 
         return `${window.remainingPct}%`;
     }
 
     _applyPanelGroup(panel, svc, colorize, windowsMode) {
-        const sessionWindow = svc.windows[0];
-        const weeklyWindow = svc.windows[1];
+        // Windows are a filtered list, not a fixed positional layout: an
+        // exhausted weekly allowance omits Session, and Fable is optional.
+        // Look each one up by label so a missing window never shifts the
+        // next one into its slot.
+        const sessionWindow = svc.windows?.find(w => w.label === 'Session');
+        const weeklyWindow = svc.windows?.find(w => w.label === 'Weekly');
 
         // A window the provider does not report at all (Codex currently has no
         // 5h window on Plus) would only ever render as "5h --", so drop it
         // instead of parking dead text in the bar.
         const showSession = windowsMode !== 'weekly' && this._hasWindowData(sessionWindow);
-        const showWeekly = windowsMode !== 'session' && this._hasWindowData(weeklyWindow);
+        // Session is absent only when the weekly allowance is exhausted;
+        // in that case a "5h only" preference must still surface the weekly
+        // blockage instead of leaving the provider blank.
+        const showWeekly = (windowsMode !== 'session' || !sessionWindow) && this._hasWindowData(weeklyWindow);
 
         setText(panel.sessionLabel, `5h ${this._formatPctText(sessionWindow)}`);
         setText(panel.weeklyLabel, `7d ${this._formatPctText(weeklyWindow)}`);
 
-        const sessionColor = colorize ? pctColor(sessionWindow.remainingPct) : '';
-        const weeklyColor = colorize ? pctColor(weeklyWindow.remainingPct) : '';
+        const sessionColor = colorize ? pctColor(sessionWindow?.remainingPct) : '';
+        const weeklyColor = colorize ? pctColor(weeklyWindow?.remainingPct) : '';
         setInlineStyle(panel.sessionLabel, sessionColor ? `color: ${sessionColor};` : '');
         setInlineStyle(panel.weeklyLabel, weeklyColor ? `color: ${weeklyColor};` : '');
 
@@ -649,21 +656,24 @@ class UsageIndicator extends PanelMenu.Button {
 
         // Optional Fable segment (Claude and Meridian groups). The Fable
         // window is present in the view-model only when the toggle is on.
+        let showFable = false;
         if (panel.fableLabel) {
-            const fableWindow = svc.windows[2];
+            const fableWindow = svc.windows?.find(w => w.label === 'Fable');
             if (fableWindow && !fableWindow.remainingText.startsWith('--')) {
                 setText(panel.fableLabel, `F ${this._formatPctText(fableWindow)}`);
                 const fableColor = colorize ? pctColor(fableWindow.remainingPct) : '';
                 setInlineStyle(panel.fableLabel, fableColor ? `color: ${fableColor};` : '');
-                panel.fableSlash.show();
+                // No separator when Fable is the only visible segment.
+                panel.fableSlash.visible = showSession || showWeekly;
                 panel.fableLabel.show();
+                showFable = true;
             } else {
                 panel.fableSlash.hide();
                 panel.fableLabel.hide();
             }
         }
 
-        return showSession || showWeekly || Boolean(panel.fableLabel?.visible);
+        return showSession || showWeekly || showFable;
     }
 
     // Returns whether the group ended up with anything to show.

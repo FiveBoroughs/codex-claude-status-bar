@@ -90,12 +90,21 @@ export function buildUsageViewModel(summary, options = {}) {
 
     const services = SERVICES.map(service => {
         const state = summary?.providers?.[service.key] ?? null;
+        // An exhausted weekly allowance blocks the provider no matter what
+        // the 5h window still holds, so presenting Session would imply
+        // availability that is not there. Omit it until weekly returns;
+        // the raw summary keeps the reading. An unknown weekly figure is
+        // not exhaustion, and a tiny positive one is not either — judge
+        // the raw value, not the rounded figure on screen.
+        const weeklyRemainingPct = state?.data?.weeklyRemainingPct;
+        const weeklyExhausted = Number.isFinite(weeklyRemainingPct) && weeklyRemainingPct <= 0;
 
         return {
             key: service.key,
             name: service.name,
             windows: service.windows
                 .filter(spec => !spec.optional || enabled.has(spec.optional))
+                .filter(spec => !(weeklyExhausted && spec.label === 'Session'))
                 .map(spec => buildWindow(spec, state?.data, now)),
             warning: warningFor(service.name, state?.code),
         };

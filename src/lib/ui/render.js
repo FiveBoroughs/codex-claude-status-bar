@@ -87,20 +87,31 @@ function buildWindowViewModel(label, remainingPct, resetsAtIso, now) {
 function buildServiceViewModel(name, providerData, providerCode, now, options = {}) {
     const data = providerData ?? null;
 
-    const windows = [
-        buildWindowViewModel(
+    // An exhausted weekly allowance blocks the provider no matter what the
+    // 5h window still holds, so presenting Session would imply availability
+    // that is not there. Omit it until weekly returns; the raw summary keeps
+    // the reading. An unknown weekly figure is not exhaustion, and a tiny
+    // positive one is not either — judge the raw value, not the rounded
+    // figure on screen.
+    const weeklyExhausted = Number.isFinite(data?.weeklyRemainingPct) && data.weeklyRemainingPct <= 0;
+
+    const windows = [];
+
+    if (!weeklyExhausted) {
+        windows.push(buildWindowViewModel(
             'Session',
             data?.sessionRemainingPct,
             data?.sessionResetsAtIso,
             now,
-        ),
-        buildWindowViewModel(
-            'Weekly',
-            data?.weeklyRemainingPct,
-            data?.weeklyResetsAtIso,
-            now,
-        ),
-    ];
+        ));
+    }
+
+    windows.push(buildWindowViewModel(
+        'Weekly',
+        data?.weeklyRemainingPct,
+        data?.weeklyResetsAtIso,
+        now,
+    ));
 
     if (options.includeFable) {
         windows.push(buildWindowViewModel(

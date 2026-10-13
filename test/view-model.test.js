@@ -118,3 +118,92 @@ test('the version string is carried through and overridable', () => {
     assert.match(buildUsageViewModel(SUMMARY, {now: NOW}).version, /^codex-claude-status-bar /);
     assert.equal(buildUsageViewModel(SUMMARY, {now: NOW, version: 'test 9.9'}).version, 'test 9.9');
 });
+
+test('an exhausted weekly limit hides session until weekly allowance returns', () => {
+    for (const key of ['codex', 'claude', 'meridian']) {
+        const data = {
+            sessionRemainingPct: 100,
+            weeklyRemainingPct: 0,
+            weeklyResetsAtIso: '2026-07-29T12:00:00Z',
+        };
+        const summary = {providers: {[key]: {code: 'OK', data}}};
+        const blocked = serviceNamed(buildUsageViewModel(summary, {now: NOW}), key);
+
+        assert.deepEqual(blocked.windows.map(w => w.label), ['Weekly'], key);
+        assert.equal(blocked.windows[0].remainingText, '0% left', key);
+        assert.equal(blocked.windows[0].resetsInText, 'Resets in 2d', key);
+        assert.equal(data.sessionRemainingPct, 100, 'raw usage remains unchanged');
+
+        data.weeklyRemainingPct = 100;
+        const restored = serviceNamed(buildUsageViewModel(summary, {now: NOW}), key);
+        assert.deepEqual(restored.windows.map(w => w.label), ['Session', 'Weekly'], key);
+        assert.equal(restored.windows[0].remainingText, '100% left', key);
+    }
+});
+
+test('a weekly allowance that is merely small or unknown does not hide session', () => {
+    // 0.4 rounds to a displayed 0%, but the raw allowance is not exhausted;
+    // an unreported weekly figure is likewise no evidence of exhaustion.
+    for (const weeklyRemainingPct of [0.4, null, undefined, NaN]) {
+        const summary = {
+            providers: {
+                claude: {code: 'OK', data: {sessionRemainingPct: 100, weeklyRemainingPct}},
+            },
+        };
+        const claude = serviceNamed(buildUsageViewModel(summary, {now: NOW}), 'claude');
+
+        assert.deepEqual(claude.windows.map(w => w.label), ['Session', 'Weekly'], String(weeklyRemainingPct));
+    }
+});
+
+test('an exhausted weekly limit leaves the fable window in place', () => {
+    const data = {
+        sessionRemainingPct: 100,
+        weeklyRemainingPct: 0,
+        fableRemainingPct: 80,
+    };
+
+    const claude = serviceNamed(
+        buildUsageViewModel({providers: {claude: {code: 'OK', data}}}, {now: NOW, showClaudeFable: true}),
+        'claude',
+    );
+    assert.deepEqual(claude.windows.map(w => w.label), ['Weekly', 'Fable']);
+    assert.equal(claude.windows[1].remainingText, '80% left');
+
+    const meridian = serviceNamed(
+        buildUsageViewModel({providers: {meridian: {code: 'OK', data}}}, {now: NOW, showMeridianFable: true}),
+        'meridian',
+    );
+    assert.deepEqual(meridian.windows.map(w => w.label), ['Weekly', 'Fable']);
+    assert.equal(meridian.windows[1].remainingText, '80% left');
+});
+
+test('GNOME hides exhausted sessions and restores them after weekly recovery', async () => {
+    const {buildUsageViewModel: buildGnomeView} = await import('../src/lib/ui/render.js');
+
+    for (const key of ['codex', 'claude', 'meridian']) {
+        const data = {
+            sessionRemainingPct: 100,
+            weeklyRemainingPct: 0,
+            weeklyResetsAtIso: '2026-07-29T12:00:00Z',
+            fableRemainingPct: 80,
+        };
+        const summary = {providers: {[key]: {code: 'OK', data}}};
+        const options = {now: NOW, showClaudeFable: true, showMeridianFable: true};
+        const service = () => buildGnomeView(summary, options).services
+            .find(s => s.name.toLowerCase() === key);
+        const blocked = service();
+
+        assert.deepEqual(blocked.windows.map(w => w.label),
+            key === 'codex' ? ['Weekly'] : ['Weekly', 'Fable'], key);
+        assert.equal(blocked.windows[0].resetsInText, 'Resets in 2d', key);
+        if (key !== 'codex')
+            assert.equal(blocked.windows[1].remainingText, '80% left', key);
+
+        for (const weeklyRemainingPct of [100, 0.4, null]) {
+            data.weeklyRemainingPct = weeklyRemainingPct;
+            assert.equal(service().windows[0].label, 'Session', key);
+            assert.equal(service().windows[0].remainingText, '100% left', key);
+        }
+    }
+});

@@ -54,6 +54,11 @@ Exits non-zero when no provider returned usable data, so a caller can tell
 `--json` is the seam for any shell not written yet — a tray app, a prompt
 segment, a Raycast script, a cron job.
 
+Human-readable CLI and xbar output hide the 5h window when weekly allowance
+is exhausted, keeping the weekly percentage and reset countdown visible.
+The 5h window returns when weekly allowance does. `--json` keeps both raw
+readings unchanged.
+
 ## Windows — not built yet
 
 The plan is a tray icon that opens a small panel on click. What exists already:

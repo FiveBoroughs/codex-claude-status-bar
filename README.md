@@ -34,6 +34,8 @@ plan — the extension drops the window instead of printing `5h --`.*
 - **At-a-glance colour** — green ≥ 70 %, yellow ≥ 30 %, red below.
 - **Detail popup** — per-window remaining %, reset countdown, manual refresh.
 - **Compact panel** — both providers side by side, each as icon + `5h X% / 7d Y%`.
+- **Weekly exhaustion** — at 0% weekly remaining, hide the unusable 5h window
+  from the panel and popup; keep weekly remaining and its reset countdown.
 - **Claude Fable** — optional row + top-bar segment for Claude's model-scoped
   Fable weekly cap.
 - **Low-quota alerts** — desktop notification when a window drops below 20 %,
@@ -112,7 +114,7 @@ is per provider, under the **Claude**, **Codex** and **Meridian** submenus:
 | Option | What it does |
 | --- | --- |
 | **Show in top bar** | Per provider. Off hides that provider's icon and percentages from the bar; its popup section stays. A provider also hides itself while it has no data. |
-| **5h + 7d / 5h only / 7d only** | Per provider — which windows that provider contributes to the bar. Default `5h + 7d`. A window the provider does not report is dropped rather than shown as `--`. |
+| **5h + 7d / 5h only / 7d only** | Per provider — which windows that provider contributes to the bar. Default `5h + 7d`. A window the provider does not report is dropped rather than shown as `--`. An exhausted weekly allowance overrides `5h only`: show `7d 0%` instead, until weekly allowance returns. |
 | **Show Fable usage** (Claude, Meridian) | Adds a `F Z%` segment to that provider's top-bar group and a **Fable** row in the popup. Reads the model-scoped weekly cap. Off by default; the segment appears only when the account reports a Fable limit. |
 | **Icon** (Claude) | Starburst (Claude) vs. bracketed dots (Claude Code) mark. |
 
@@ -139,6 +141,12 @@ Every **3 minutes** the extension asks each provider how much quota is left. It
 reuses the sign-in the Claude Code and Codex CLIs already performed, renewing
 the token when it has aged out, and turns the answer into a remaining
 percentage and a reset time per window.
+
+Codex quota is fetched from ChatGPT's usage endpoint using
+`~/.codex/auth.json`, not OMP's sign-in. Successful model calls in OMP do not
+prove that this separate quota request will succeed. GNOME's Codex token
+renewal sends a form-encoded string without requiring browser globals such
+as `URLSearchParams`, which GJS does not provide.
 
 **Privacy:** your credentials stay on your machine. They are sent nowhere
 except to Claude's and OpenAI's own APIs, as the authorisation header on the

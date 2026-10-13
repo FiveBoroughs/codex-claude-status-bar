@@ -86,11 +86,9 @@ async function refreshAccessToken(fetchImpl, refreshToken) {
     if (!refreshToken)
         return fail('auth_expired', 'OAuth refresh token is missing');
 
-    const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: CODEX_CLIENT_ID,
-        refresh_token: refreshToken,
-    });
+    // GJS has no URLSearchParams; pass a form-encoded string to libsoup.
+    const body = `grant_type=refresh_token&client_id=${encodeURIComponent(CODEX_CLIENT_ID)}`
+        + `&refresh_token=${encodeURIComponent(refreshToken)}`;
 
     const response = await fetchImpl(REFRESH_ENDPOINT, {
         method: 'POST',

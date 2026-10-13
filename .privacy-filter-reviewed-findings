@@ -7,3 +7,5 @@ README.md	private_url	dc3cae7bedadf576
 README.md	private_url	926d6f0f2494094d
 core/notifications.js	private_person	3b1e5b533abb0c49
 src/lib/core/notifications.js	private_person	dc9e2de3fa4406c9
+test/view-model.test.js	private_date	ca65ebc97353339b
+test/xbar-render.test.js	private_date	ca65ebc97353339b
