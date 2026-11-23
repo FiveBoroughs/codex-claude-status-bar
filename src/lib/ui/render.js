@@ -1,4 +1,4 @@
-const VERSION = 'codex-claude-status-bar 1.4.1';
+const VERSION = 'codex-claude-status-bar 1.5.0';
 
 export function getDotColor(pct) {
     if (!Number.isFinite(pct))
