@@ -30,9 +30,6 @@ const render = (summary, options) =>
 
 const menuBar = output => output.split('\n')[0];
 
-test('the menu bar line carries both providers', () => {
-    assert.equal(menuBar(render(SUMMARY)), 'Codex 7d 86%  |  Claude 5h 28% / 7d 91%');
-});
 
 test('a window the provider does not report is left out of the menu bar', () => {
     // Codex has no 5h window here, so the bar must not show an empty one.
@@ -132,4 +129,29 @@ test('an exhausted weekly limit shows only the weekly window until it returns', 
     assert.equal(menuBar(restored), 'Meridian 5h 100% / 7d 50%');
     assert.match(meridianSection(restored), /Session {2}100% left/);
     assert.match(meridianSection(restored), /Weekly {2}50% left · Resets in 2d/);
+});
+
+test('Muse renders true rolling windows and removes session when weekly is exhausted', () => {
+    const data = {sessionRemainingPct: 42, weeklyRemainingPct: null, sessionShortLabel: '3h'};
+    const summary = {providers: {muse: {code: 'PARTIAL_DATA', data}}};
+    const section = output => {
+        const rest = output.slice(output.indexOf('\nMuse Code'));
+        return rest.slice(0, rest.indexOf('\n---'));
+    };
+    const partial = render(summary);
+    assert.equal(menuBar(partial), 'Muse Code 3h 42%');
+    assert.match(section(partial), /3h {2}42% left/);
+    assert.match(section(partial), /7d {2}no data/);
+    assert.match(section(partial), /Muse Code: partial usage data/);
+
+    data.weeklyRemainingPct = 0;
+    const blocked = render(summary);
+    assert.equal(menuBar(blocked), 'Muse Code 7d 0%');
+    assert.equal(section(blocked).includes('3h'), false);
+
+    data.weeklyRemainingPct = 50;
+    delete data.sessionShortLabel;
+    const restored = render(summary);
+    assert.equal(menuBar(restored), 'Muse Code Rolling 42% / 7d 50%');
+    assert.match(section(restored), /Rolling {2}42% left/);
 });

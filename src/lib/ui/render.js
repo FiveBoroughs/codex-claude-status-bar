@@ -68,6 +68,9 @@ function toWarningText(providerLabel, code) {
     if (code === 'NETWORK_ERROR')
         return `${providerLabel}: network error`;
 
+    if (code === 'QUOTA_UNAVAILABLE')
+        return `${providerLabel}: quota unavailable`;
+
     if (code === 'SCHEMA_CHANGED')
         return `${providerLabel}: schema changed`;
 
@@ -88,7 +91,7 @@ function buildServiceViewModel(name, providerData, providerCode, now, options = 
     const data = providerData ?? null;
 
     // An exhausted weekly allowance blocks the provider no matter what the
-    // 5h window still holds, so presenting Session would imply availability
+    // rolling window still holds, so presenting Session would imply availability
     // that is not there. Omit it until weekly returns; the raw summary keeps
     // the reading. An unknown weekly figure is not exhaustion, and a tiny
     // positive one is not either — judge the raw value, not the rounded
@@ -105,6 +108,8 @@ function buildServiceViewModel(name, providerData, providerCode, now, options = 
             now,
         ));
     }
+    if (options.sessionShortLabel && windows.length)
+        windows[0].shortLabel = options.sessionShortLabel;
 
     windows.push(buildWindowViewModel(
         'Weekly',
@@ -157,12 +162,16 @@ export function buildUsageViewModel(summary, deps = {}) {
     const claude = summary?.providers?.claude ?? null;
     const codex = summary?.providers?.codex ?? null;
     const meridian = summary?.providers?.meridian ?? null;
+    const muse = summary?.providers?.muse ?? null;
 
     return {
         services: [
             buildServiceViewModel('Codex', codex?.data, codex?.code, now),
             buildServiceViewModel('Claude', claude?.data, claude?.code, now, {includeFable: showClaudeFable}),
             buildServiceViewModel('Meridian', meridian?.data, meridian?.code, now, {includeFable: showMeridianFable}),
+            buildServiceViewModel('Muse Code', muse?.data, muse?.code, now, {
+                sessionShortLabel: muse?.data?.sessionShortLabel || 'Rolling',
+            }),
         ],
         version,
         lastUpdate: formatNextUpdate(summary?.lastUpdatedAtIso, pollIntervalMs, now),

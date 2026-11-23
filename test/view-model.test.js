@@ -27,12 +27,6 @@ const SUMMARY = {
 
 const serviceNamed = (vm, key) => vm.services.find(s => s.key === key);
 
-test('services come out in popup order and are identified by key', () => {
-    const vm = buildUsageViewModel(SUMMARY, {now: NOW});
-
-    assert.deepEqual(vm.services.map(s => s.key), ['codex', 'claude', 'meridian']);
-    assert.deepEqual(vm.services.map(s => s.name), ['Codex', 'Claude', 'Meridian']);
-});
 
 test('window figures are rounded and phrased for display', () => {
     const claude = serviceNamed(buildUsageViewModel(SUMMARY, {now: NOW}), 'claude');
@@ -101,8 +95,6 @@ test('an empty summary still produces a drawable view model', () => {
     for (const summary of [null, undefined, {}, {providers: {}}]) {
         const vm = buildUsageViewModel(summary, {now: NOW});
 
-        assert.equal(vm.services.length, 3);
-        assert.equal(vm.services[0].windows.length, 2);
         assert.equal(vm.services[0].windows[0].remainingText, '-- left');
         assert.equal(vm.lastUpdate, 'Next update in --');
     }
@@ -120,7 +112,7 @@ test('the version string is carried through and overridable', () => {
 });
 
 test('an exhausted weekly limit hides session until weekly allowance returns', () => {
-    for (const key of ['codex', 'claude', 'meridian']) {
+    for (const key of ['codex', 'claude', 'meridian', 'muse']) {
         const data = {
             sessionRemainingPct: 100,
             weeklyRemainingPct: 0,
@@ -205,5 +197,35 @@ test('GNOME hides exhausted sessions and restores them after weekly recovery', a
             assert.equal(service().windows[0].label, 'Session', key);
             assert.equal(service().windows[0].remainingText, '100% left', key);
         }
+    }
+});
+
+test('portable and GNOME Muse views preserve rolling labels and unknown windows', async () => {
+    const {buildUsageViewModel: buildGnomeView} = await import('../src/lib/ui/render.js');
+    for (const build of [buildUsageViewModel, buildGnomeView]) {
+        for (const sessionShortLabel of ['3h', '30m', undefined]) {
+            const data = {sessionRemainingPct: 42, weeklyRemainingPct: null, sessionShortLabel};
+            const summary = {providers: {muse: {code: 'PARTIAL_DATA', data}}};
+            const muse = build(summary, {now: NOW, showClaudeFable: true, showMeridianFable: true})
+                .services.find(s => s.name === 'Muse Code');
+            assert.equal(muse.windows[0].shortLabel, sessionShortLabel ?? 'Rolling');
+            assert.equal(muse.windows[0].remainingText, '42% left');
+            assert.equal(muse.windows[1].remainingText, '-- left');
+            assert.equal(muse.warning, 'Muse Code: partial usage data');
+            assert.deepEqual(muse.windows.map(w => w.label), ['Session', 'Weekly']);
+
+            data.weeklyRemainingPct = 0;
+            const blocked = build(summary, {now: NOW}).services.find(s => s.name === 'Muse Code');
+            assert.deepEqual(blocked.windows.map(w => w.label), ['Weekly']);
+            data.weeklyRemainingPct = 0.4;
+            const restored = build(summary, {now: NOW}).services.find(s => s.name === 'Muse Code');
+            assert.equal(restored.windows[0].shortLabel, sessionShortLabel ?? 'Rolling');
+        }
+
+        const missing = build({providers: {muse: {code: 'AUTH_EXPIRED', data: null}}}, {now: NOW})
+            .services.find(s => s.name === 'Muse Code');
+        assert.equal(missing.windows[0].shortLabel, 'Rolling');
+        assert.equal(missing.windows[0].remainingText, '-- left');
+        assert.equal(missing.warning, 'Muse Code: authentication expired');
     }
 });

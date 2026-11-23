@@ -47,12 +47,21 @@ const SERVICES = [
             {label: 'Fable', pctField: 'fableRemainingPct', resetField: 'fableResetsAtIso', optional: 'meridian-fable'},
         ],
     },
+    {
+        key: 'muse',
+        name: 'Muse Code',
+        windows: [
+            {label: 'Session', pctField: 'sessionRemainingPct', resetField: 'sessionResetsAtIso', shortLabelField: 'sessionShortLabel', shortLabel: 'Rolling'},
+            {label: 'Weekly', pctField: 'weeklyRemainingPct', resetField: 'weeklyResetsAtIso', shortLabel: '7d'},
+        ],
+    },
 ];
 
 const WARNINGS = {
     AUTH_EXPIRED: 'authentication expired',
     PARTIAL_DATA: 'partial usage data',
     NETWORK_ERROR: 'network error',
+    QUOTA_UNAVAILABLE: 'quota unavailable',
     SCHEMA_CHANGED: 'schema changed',
 };
 
@@ -68,6 +77,7 @@ function buildWindow(spec, data, now) {
 
     return {
         label: spec.label,
+        ...(spec.shortLabel ? {shortLabel: data?.[spec.shortLabelField] || spec.shortLabel} : {}),
         // A window with no reading still has to occupy its row, so it draws as
         // an empty bar rather than being absent.
         remainingPct: Number.isFinite(remainingPct) ? Math.round(remainingPct) : 0,
@@ -91,7 +101,7 @@ export function buildUsageViewModel(summary, options = {}) {
     const services = SERVICES.map(service => {
         const state = summary?.providers?.[service.key] ?? null;
         // An exhausted weekly allowance blocks the provider no matter what
-        // the 5h window still holds, so presenting Session would imply
+        // the rolling window still holds, so presenting Session would imply
         // availability that is not there. Omit it until weekly returns;
         // the raw summary keeps the reading. An unknown weekly figure is
         // not exhaustion, and a tiny positive one is not either — judge

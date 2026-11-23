@@ -40,6 +40,18 @@ export function createUsageProvider(spec, options = {}) {
     const now = options.now ?? (() => Date.now());
     const credentialsPath = expandHome(spec.credentialsPath, homeDir);
 
+    async function loadPreferredTokens() {
+        if (typeof options.readCredentialTokens !== 'function')
+            return null;
+
+        try {
+            const tokens = await options.readCredentialTokens();
+            return tokens && (tokens.accessToken || tokens.refreshToken) ? tokens : null;
+        } catch {
+            return null;
+        }
+    }
+
     async function loadCredentials() {
         if (typeof readTextFile !== 'function')
             return failed('missing_creds', 'No readTextFile was provided for this runtime');
@@ -120,13 +132,18 @@ export function createUsageProvider(spec, options = {}) {
             if (typeof fetchImpl !== 'function')
                 return failed('network_error', 'No fetch implementation is available');
 
-            const credentials = await loadCredentials();
-            if (!credentials.ok)
-                return credentials;
+            let tokens = await loadPreferredTokens();
+            if (!tokens) {
+                const credentials = await loadCredentials();
+                if (!credentials.ok)
+                    return credentials;
 
-            const tokens = spec.readTokens(credentials.data);
+                tokens = spec.readTokens(credentials.data);
+            }
             if (!tokens || (!tokens.accessToken && !tokens.refreshToken))
                 return failed('missing_creds', `No usable ${spec.name} tokens in credentials JSON`);
+
+            const refreshable = tokens.refreshable !== false;
 
             try {
                 let accessToken = tokens.accessToken;
@@ -135,6 +152,9 @@ export function createUsageProvider(spec, options = {}) {
                 // absent or known to be stale; otherwise try it and refresh
                 // reactively, which costs one request less in the common case.
                 if (!accessToken || hasExpired(tokens.expiresAt, now())) {
+                    if (!refreshable)
+                        return failed('auth_expired', 'OAuth access token is expired');
+
                     const refreshed = await exchangeRefreshToken(tokens.refreshToken);
                     if (!refreshed.ok)
                         return refreshed;
@@ -146,7 +166,9 @@ export function createUsageProvider(spec, options = {}) {
 
                 // The stored token can be revoked or expired without the file
                 // saying so. One refresh-and-retry, then take the answer.
-                if (!usage.ok && usage.error.code === 'auth_expired') {
+                // Non-refreshable tokens are owned by another tool, which
+                // handles their rotation, so they are never refreshed here.
+                if (!usage.ok && usage.error.code === 'auth_expired' && refreshable) {
                     const refreshed = await exchangeRefreshToken(tokens.refreshToken);
                     if (!refreshed.ok)
                         return refreshed;

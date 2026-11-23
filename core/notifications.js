@@ -26,6 +26,7 @@ const PROVIDER_LABELS = {
     claude: 'Claude',
     codex: 'Codex',
     meridian: 'Meridian',
+    muse: 'Muse Code',
 };
 
 const WINDOWS = [
@@ -114,8 +115,11 @@ export function createThresholdNotifier(options = {}) {
         return watcher;
     }
 
-    function announce(event, provider, window, remainingPct, resetsAtIso) {
-        const who = `${PROVIDER_LABELS[provider] ?? provider} ${window.label}`;
+    function announce(event, provider, window, remainingPct, resetsAtIso, data) {
+        const label = provider === 'muse' && window.key === 'session'
+            ? data.sessionShortLabel || 'Rolling'
+            : window.label;
+        const who = `${PROVIDER_LABELS[provider] ?? provider} ${label}`;
         const pct = Math.round(remainingPct);
 
         if (event.type === 'reset') {
@@ -158,7 +162,7 @@ export function createThresholdNotifier(options = {}) {
                         .read(remainingPct, resetsAtIso);
 
                     for (const event of events)
-                        announce(event, provider, window, remainingPct, resetsAtIso);
+                        announce(event, provider, window, remainingPct, resetsAtIso, data);
                 }
             }
         },

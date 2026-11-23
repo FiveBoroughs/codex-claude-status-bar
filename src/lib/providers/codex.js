@@ -125,6 +125,7 @@ function readTokenBundle(credentials) {
 export function createCodexProvider(options = {}) {
     const fetchImpl = options.fetch ?? globalThis.fetch;
     const readTextFile = options.readTextFile ?? defaultReadTextFile;
+    const readCodexCredential = options.readCodexCredential ?? null;
     const homeDir = options.homeDir ?? globalThis.process?.env?.HOME ?? null;
     const credentialsPath = resolveCredentialsPath(homeDir);
 
@@ -133,24 +134,46 @@ export function createCodexProvider(options = {}) {
             if (typeof fetchImpl !== 'function')
                 return fail('network_error', 'Fetch implementation is unavailable');
 
-            let raw;
-            try {
-                raw = await readTextFile(credentialsPath);
-            } catch {
-                return fail('missing_creds', `Missing credentials at ${credentialsPath}`);
+            let initialAccessToken = null;
+            let refreshToken = null;
+            let accountId = null;
+            // OMP owns rotation of its credentials, so they are used
+            // read-only and never enter the CLI file's refresh path.
+            let refreshable = true;
+
+            let ompBundle = null;
+            if (typeof readCodexCredential === 'function') {
+                try {
+                    ompBundle = await readCodexCredential();
+                } catch {
+                    ompBundle = null;
+                }
             }
 
-            if (!raw)
-                return fail('missing_creds', `Missing credentials at ${credentialsPath}`);
+            if (ompBundle?.accessToken) {
+                initialAccessToken = ompBundle.accessToken;
+                accountId = ompBundle.accountId ?? null;
+                refreshable = false;
+            } else {
+                let raw;
+                try {
+                    raw = await readTextFile(credentialsPath);
+                } catch {
+                    return fail('missing_creds', `Missing credentials at ${credentialsPath}`);
+                }
 
-            let parsed;
-            try {
-                parsed = JSON.parse(raw);
-            } catch {
-                return fail('parse_error', 'Unable to parse Codex credentials JSON');
+                if (!raw)
+                    return fail('missing_creds', `Missing credentials at ${credentialsPath}`);
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch {
+                    return fail('parse_error', 'Unable to parse Codex credentials JSON');
+                }
+
+                ({accessToken: initialAccessToken, refreshToken, accountId} = readTokenBundle(parsed));
             }
-
-            const {accessToken: initialAccessToken, refreshToken, accountId} = readTokenBundle(parsed);
 
             if (!initialAccessToken && !refreshToken)
                 return fail('missing_creds', 'Missing tokens.access_token and tokens.refresh_token in credentials JSON');
@@ -167,7 +190,7 @@ export function createCodexProvider(options = {}) {
                 }
 
                 let usage = await fetchUsage(fetchImpl, accessToken, accountId);
-                if (!usage.ok && usage.error.code === 'auth_expired') {
+                if (!usage.ok && usage.error.code === 'auth_expired' && refreshable) {
                     const refreshed = await refreshAccessToken(fetchImpl, refreshToken);
                     if (!refreshed.ok)
                         return refreshed;

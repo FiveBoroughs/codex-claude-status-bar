@@ -4,12 +4,11 @@
 [![GNOME Shell 45–50](https://img.shields.io/badge/GNOME%20Shell-45–50-4A86CF?logo=gnome&logoColor=white)](https://gjs.guide/extensions/)
 [![Latest release](https://img.shields.io/github/v/release/ondrejbecva/codex-claude-status-bar?label=release)](https://github.com/ondrejbecva/codex-claude-status-bar/releases/latest)
 
-**Keep an eye on how much of your Claude and Codex AI quota is left — right from
-the GNOME top bar.** This extension polls both providers' official usage
-endpoints and shows the remaining percentage for each rate-limit window
-(5-hour session and 7-day weekly), colour-coded green → yellow → red, with a
-click-through breakdown and low-quota notifications. No API keys, no config: it
-reads the credential files the Claude Code and Codex CLIs already write.
+**Keep an eye on your Claude, Codex, Meridian, and Muse Code quota — right from
+the GNOME top bar.** Remaining percentages, reset countdowns, and low-quota
+notifications use each provider's reported windows. Claude and Codex reuse
+their CLI credentials; Meridian reads your configured proxy; Muse Code
+reuses your OMP subscription sign-in. No Muse CLI installation is required.
 
 <p align="center">
   <img src="docs/screenshot-panel.png" alt="The top bar: Claude 5h 90% / 7d 95%, Codex 7d 100%" width="560">
@@ -31,11 +30,14 @@ plan — the extension drops the window instead of printing `5h --`.*
   [Meridian](https://github.com/rynfar/opencode-claude-max-proxy) proxy: reads the proxied
   Claude account's usage from its `/v1/usage/quota` endpoint, no credentials
   needed on this machine.
+- **Muse Code via OMP** — reads the existing OMP Muse subscription credential
+  from its SQLite database and queries Meta's quota API without inference,
+  onboarding, or credential changes. Shows rolling and weekly allowances.
 - **At-a-glance colour** — green ≥ 70 %, yellow ≥ 30 %, red below.
 - **Detail popup** — per-window remaining %, reset countdown, manual refresh.
-- **Compact panel** — both providers side by side, each as icon + `5h X% / 7d Y%`.
-- **Weekly exhaustion** — at 0% weekly remaining, hide the unusable 5h window
-  from the panel and popup; keep weekly remaining and its reset countdown.
+- **Compact panel** — each configured provider as icon + quota percentages.
+- **Weekly exhaustion** — at 0% weekly remaining, hide the unusable session
+  window from the panel and popup; keep weekly remaining and its reset countdown.
 - **Claude Fable** — optional row + top-bar segment for Claude's model-scoped
   Fable weekly cap.
 - **Low-quota alerts** — desktop notification when a window drops below 20 %,
@@ -70,8 +72,11 @@ irrelevant.
 - GNOME Shell 45–50
 - `glib-compile-schemas` (ships with GLib — `glib2` on Fedora/Arch,
   `libglib2.0-bin` on Debian/Ubuntu; usually already present)
-- A signed-in **Claude Code** and/or **Codex** CLI (so the credential files
-  exist). Either one alone works; the other provider just stays hidden.
+- At least one configured provider: Claude Code/Codex CLI sign-in, Codex or
+  Muse Code signed in through OMP, or a Meridian proxy. Unconfigured
+  providers stay hidden in the top bar.
+- Reading Codex or Muse Code credentials from OMP requires `sqlite3` on
+  `PATH`; neither the Muse CLI nor a running OMP process is required.
 
 ## Install
 
@@ -109,7 +114,7 @@ Click the panel indicator to open the popup; the settings live at the bottom of
 that menu.
 
 The top bar always shows each provider as *icon + percentages*; everything else
-is per provider, under the **Claude**, **Codex** and **Meridian** submenus:
+is per provider, under the **Claude**, **Codex**, **Meridian**, and **Muse Code** submenus:
 
 | Option | What it does |
 | --- | --- |
@@ -127,6 +132,17 @@ gsettings --schemadir ~/.local/share/gnome-shell/extensions/codex-claude-status-
   set org.gnome.shell.extensions.codex-claude-status-bar meridian-url 'http://host:3456/'
 ```
 
+Codex and Muse Code read `~/.omp/agent/agent.db` read-only. For a relocated
+OMP database, set `omp-auth-db` using the same schema:
+
+```bash
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/codex-claude-status-bar@ondrejbecva.cz/schemas \
+  set org.gnome.shell.extensions.codex-claude-status-bar omp-auth-db '/path/to/agent.db'
+```
+
+Muse uses the reported rolling duration (usually `5h`) rather than assuming
+every session window is five hours. A missing duration is labeled `Rolling`.
+
 Global toggles sit directly in the menu:
 
 | Option | What it does |
@@ -137,21 +153,42 @@ Global toggles sit directly in the menu:
 
 ## How it works
 
-Every **3 minutes** the extension asks each provider how much quota is left. It
-reuses the sign-in the Claude Code and Codex CLIs already performed, renewing
-the token when it has aged out, and turns the answer into a remaining
-percentage and a reset time per window.
+Every **3 minutes** the extension asks each provider how much quota is left
+and turns the answer into a remaining percentage and reset time per window.
+Claude reuses its CLI sign-in.
 
-Codex quota is fetched from ChatGPT's usage endpoint using
-`~/.codex/auth.json`, not OMP's sign-in. Successful model calls in OMP do not
-prove that this separate quota request will succeed. GNOME's Codex token
-renewal sends a form-encoded string without requiring browser globals such
-as `URLSearchParams`, which GJS does not provide.
+Codex quota is fetched from ChatGPT's usage endpoint. The extension first
+reads OMP's enabled `openai-codex` OAuth credential, including its account ID,
+on each poll. OMP owns token renewal; the extension never refreshes or writes
+OMP credentials. If no OMP credential can be read, Codex falls back to
+`~/.codex/auth.json` and its CLI token-renewal flow. A rejected OMP token is
+reported as an authentication failure without switching to the CLI account.
+Sign in again through OMP if its credential expires. For CLI-file token
+renewal, GNOME sends a form-encoded string without browser globals such as
+`URLSearchParams`, which GJS does not provide.
 
-**Privacy:** your credentials stay on your machine. They are sent nowhere
-except to Claude's and OpenAI's own APIs, as the authorisation header on the
-request asking for your usage — the same call the official CLIs make. No
-third-party servers, no analytics, no telemetry.
+Muse Code uses OMP's enabled `muse-code` OAuth credential, not its separate
+Meta pay-as-you-go key. It follows [OMP's quota request](https://github.com/can1357/oh-my-pi/blob/6785d70d53e2bc10aad259a532f6b5255275991e/packages/ai/src/usage/muse-code.ts):
+`POST https://api.meta.ai/muse-code/key` with an empty JSON object and the
+Meta account token. No model request or onboarding is performed; returned
+API keys and account identifiers are discarded. OMP remains responsible
+for sign-in; the extension never writes its credential database.
+
+Meta can omit `subs_usage` (or return `null`) for an active subscription
+while its rolling window is idle, including after a long suspend. This also
+withholds weekly usage even when some weekly allowance has been consumed
+([upstream report](https://github.com/steipete/CodexBar/issues/4002)).
+The extension reports **quota unavailable**, leaves both readings unknown,
+and continues polling. Readings return when Meta includes quota again,
+commonly after Muse is used. This is not an expired sign-in or a schema
+change. Missing usage is never treated as 100% remaining, and previous
+percentages are not presented as current. No model request is made to
+activate a window, and no browser credentials are read.
+
+**Privacy:** credential-bearing quota requests go only to Claude's, OpenAI's,
+and Meta's own APIs. Meridian usage requests go to your configured proxy
+without local credentials. No analytics or telemetry; credential values
+and raw Muse quota responses are never included in output or error messages.
 
 **Windows differ by plan.** Some Codex plans report only a 7-day window and no
 5-hour one; Codex CLI's own `/status` leaves its 5-hour line out in exactly

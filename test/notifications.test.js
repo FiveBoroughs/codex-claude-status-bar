@@ -201,3 +201,30 @@ test('a custom threshold is honoured', () => {
     assert.equal(sent.length, 1);
     assert.equal(sent[0].title, 'Claude 5h low');
 });
+
+test('Muse notifications use the reported rolling label and track weekly separately', async () => {
+    const {createThresholdNotifier: createGnomeNotifier} = await import('../src/lib/core/notifications.js');
+    for (const create of [createThresholdNotifier, createGnomeNotifier]) {
+        for (const sessionShortLabel of ['3h', undefined]) {
+            const sent = [];
+            const notifier = create({notifyFn: (title, body, provider) => sent.push({title, body, provider})});
+            const feed = (sessionRemainingPct, weeklyRemainingPct) => notifier.evaluate({
+                providers: {muse: {data: {sessionRemainingPct, weeklyRemainingPct, sessionShortLabel}}},
+            });
+            feed(null, 50);
+            feed(50, 15);
+            feed(15, null);
+            feed(10, null);
+            feed(100, null);
+            const rolling = sessionShortLabel ?? 'Rolling';
+            assert.deepEqual(sent.map(n => n.title), [
+                'Muse Code 7d low',
+                `Muse Code ${rolling} low`,
+                `Muse Code ${rolling} limit reset`,
+            ]);
+            assert.ok(sent.every(n => n.provider === 'muse'));
+            assert.match(sent[1].body, /^15% remaining/);
+            assert.match(sent[2].body, /^100% available again/);
+        }
+    }
+});

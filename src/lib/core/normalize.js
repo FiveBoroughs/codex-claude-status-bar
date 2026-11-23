@@ -155,3 +155,35 @@ export function normalizeMeridianUsage(payload) {
         hasFableUsage: fableRemainingPct !== null,
     };
 }
+
+function museRemaining(window) {
+    const used = window?.used_percent;
+    return typeof used === 'number' && Number.isFinite(used) && used >= 0
+        ? Math.max(0, 100 - used) : null;
+}
+
+function museReset(value) {
+    const millis = typeof value === 'number' ? value * 1000
+        : typeof value === 'string' ? Date.parse(value) : NaN;
+    const date = new Date(millis);
+    return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+export function normalizeMuseUsage(payload) {
+    const session = payload?.subs_usage?.window;
+    const weekly = payload?.subs_usage?.weekly;
+    const minutes = session?.window_duration_mins;
+    const sessionRemainingPct = museRemaining(session);
+    const weeklyRemainingPct = museRemaining(weekly);
+    return {
+        data: {
+            sessionRemainingPct,
+            weeklyRemainingPct,
+            sessionResetsAtIso: museReset(session?.resets_at),
+            weeklyResetsAtIso: museReset(weekly?.resets_at),
+            sessionShortLabel: typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
+                ? (minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`) : 'Rolling',
+        },
+        present: {session: sessionRemainingPct !== null, weekly: weeklyRemainingPct !== null},
+    };
+}

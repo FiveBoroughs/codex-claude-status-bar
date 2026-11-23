@@ -14,10 +14,12 @@
 import {createClaudeProvider} from '../../core/providers/claude.js';
 import {createCodexProvider} from '../../core/providers/codex.js';
 import {createMeridianProvider} from '../../core/providers/meridian.js';
+import {createMuseProvider} from '../../core/providers/muse.js';
 import {createProviderSlot} from '../../core/provider-slot.js';
 import {summarize} from '../../core/summary.js';
 import {buildUsageViewModel} from '../../core/view-model.js';
 import {createNodeFetch, readTextFile} from '../node/runtime.js';
+import {createCodexCredentialReader, createMuseCredentialReader} from '../node/omp-auth.js';
 
 const asJson = process.argv.includes('--json');
 const showFable = process.argv.includes('--fable');
@@ -30,8 +32,9 @@ async function collect() {
     const slots = await Promise.all(
         [
             createClaudeProvider(deps),
-            createCodexProvider(deps),
+            createCodexProvider({...deps, readCodexCredential: createCodexCredentialReader({dbPath: process.env.OMP_AUTH_DB})}),
             createMeridianProvider({fetch, baseUrl: process.env.MERIDIAN_URL}),
+            createMuseProvider({fetch, readMuseCredential: createMuseCredentialReader({dbPath: process.env.OMP_AUTH_DB})}),
         ].map(async provider => {
             const slot = createProviderSlot(provider.name);
 
@@ -68,7 +71,7 @@ function toText(summary) {
                 ? 'no data'
                 : `${window.remainingText.padEnd(9)} ${window.resetsInText}`;
 
-            lines.push(`  ${window.label.padEnd(8)} ${detail}`);
+            lines.push(`  ${(window.shortLabel ?? window.label).padEnd(8)} ${detail}`);
         }
 
         lines.push('');

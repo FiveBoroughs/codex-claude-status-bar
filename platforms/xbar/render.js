@@ -31,7 +31,7 @@ function hasReading(window) {
 function barSegment(service) {
     const parts = service.windows
         .filter(hasReading)
-        .map(window => `${BAR_LABELS[window.label] ?? window.label} ${window.remainingPct}%`);
+        .map(window => `${window.shortLabel ?? BAR_LABELS[window.label] ?? window.label} ${window.remainingPct}%`);
 
     return parts.length > 0 ? `${service.name} ${parts.join(' / ')}` : null;
 }
@@ -66,7 +66,7 @@ export function renderPlugin(viewModel, options = {}) {
                 ? `${window.remainingText} · ${window.resetsInText}`
                 : 'no data';
 
-            lines.push(styled(`  ${window.label}  ${detail}`, {
+            lines.push(styled(`  ${window.shortLabel ?? window.label}  ${detail}`, {
                 color: COLOURS[window.dotColor] ?? DIM,
                 font: 'Menlo',
                 size: 12,

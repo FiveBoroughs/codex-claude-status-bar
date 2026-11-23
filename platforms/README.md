@@ -34,10 +34,18 @@ The `3m` in the filename *is* the refresh interval — rename the file to
 `ai-usage.5m.js` for five minutes. To show Claude's Fable cap, set
 `SHOW_FABLE = true` at the top of the plugin.
 
-Credentials are read from the same paths the CLIs already write:
-`~/.claude/.credentials.json` and `~/.codex/auth.json`. Meridian needs none;
-set `MERIDIAN_URL` at the top of the plugin (or in the environment) if the
-proxy is not at the default `http://127.0.0.1:3456/`.
+Claude credentials are read from `~/.claude/.credentials.json`. Codex first
+reads OMP's enabled `openai-codex` OAuth credential; when unavailable, it uses
+`~/.codex/auth.json`. Meridian needs no local credentials; set `MERIDIAN_URL`
+at the top of the plugin (or in the environment) if the proxy is not at the
+default `http://127.0.0.1:3456/`.
+
+Codex and Muse Code read `~/.omp/agent/agent.db` using `sqlite3` on `PATH`.
+Set `OMP_AUTH_DB` to use a relocated OMP database. The database is never
+modified, and OMP remains responsible for renewing its tokens. A rejected
+OMP Codex credential reports an authentication failure without switching
+accounts. Muse selects only subscription OAuth credentials, not Meta
+pay-as-you-go keys; no Muse CLI installation is needed.
 
 ## Any OS — command line
 
@@ -46,6 +54,7 @@ node platforms/cli/usage.js          # human readable
 node platforms/cli/usage.js --json   # the raw summary
 node platforms/cli/usage.js --fable  # include the Fable cap (Claude and Meridian)
 MERIDIAN_URL=http://host:3456/ node platforms/cli/usage.js  # point at another Meridian
+OMP_AUTH_DB=/path/to/agent.db node platforms/cli/usage.js  # Codex and Muse Code through OMP
 ```
 
 Exits non-zero when no provider returned usable data, so a caller can tell
@@ -54,10 +63,17 @@ Exits non-zero when no provider returned usable data, so a caller can tell
 `--json` is the seam for any shell not written yet — a tray app, a prompt
 segment, a Raycast script, a cron job.
 
-Human-readable CLI and xbar output hide the 5h window when weekly allowance
-is exhausted, keeping the weekly percentage and reset countdown visible.
-The 5h window returns when weekly allowance does. `--json` keeps both raw
-readings unchanged.
+Human-readable CLI and xbar output hide the session window when weekly
+allowance is exhausted, keeping the weekly percentage and reset countdown
+visible. The session window returns when weekly allowance does. Muse's
+rolling label follows its reported duration. `--json` keeps both raw
+normalized readings, without credentials or account identifiers.
+
+An active Muse subscription can omit quota while its rolling window is idle.
+CLI and xbar then report **quota unavailable**, with no percentages; JSON
+uses provider code `QUOTA_UNAVAILABLE`, error kind `quota_unavailable`, and
+`data: null`. Normal readings resume when the API includes usage again.
+Missing quota is not an authentication failure or an unused full allowance.
 
 ## Windows — not built yet
 

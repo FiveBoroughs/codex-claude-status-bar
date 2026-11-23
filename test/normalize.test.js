@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 
-import {readClaudeUsage, readCodexUsage, readMeridianUsage} from '../core/normalize.js';
+import {readClaudeUsage, readCodexUsage, readMeridianUsage, readMuseUsage} from '../core/normalize.js';
 
 // ---------------------------------------------------------------- Claude ----
 
@@ -174,4 +174,37 @@ test('a meridian bucket with null utilization counts as absent, not full', () =>
     assert.equal(data.sessionRemainingPct, null);
     assert.equal(data.weeklyResetsAtIso, null);
     assert.deepEqual(present, {session: false, weekly: true, fable: false});
+});
+
+test('Muse quota uses strict numeric utilization and safe reset conversion', () => {
+    const {data, present} = readMuseUsage({subs_usage: {
+        window: {used_percent: 25, resets_at: 1800000000, window_duration_mins: 180},
+        weekly: {used_percent: 110, resets_at: '2026-10-20T00:00:00Z'},
+    }});
+    assert.deepEqual(present, {session: true, weekly: true});
+    assert.equal(data.sessionRemainingPct, 75);
+    assert.equal(data.weeklyRemainingPct, 0);
+    assert.equal(data.sessionResetsAtIso, new Date(1800000000 * 1000).toISOString());
+    assert.equal(data.weeklyResetsAtIso, '2026-10-20T00:00:00.000Z');
+    assert.equal(data.sessionShortLabel, '3h');
+});
+
+test('Muse invalid values remain unknown rather than becoming free quota', () => {
+    for (const used of [null, undefined, '20', -1, Infinity, NaN]) {
+        const {data, present} = readMuseUsage({subs_usage: {window: {used_percent: used, resets_at: 1e30}}});
+        assert.equal(data.sessionRemainingPct, null);
+        assert.equal(data.sessionResetsAtIso, null);
+        assert.deepEqual(present, {session: false, weekly: false});
+    }
+    assert.equal(readMuseUsage({api_key: 'ignored', balance: 100}).data.weeklyRemainingPct, null);
+});
+
+test('Muse labels follow actual duration or explicitly unknown rolling duration', () => {
+    for (const [minutes, label] of [[300, '5h'], [30, '30m'], [180, '3h'], [90, '90m'],
+        [undefined, 'Rolling'], [0, 'Rolling'], [-1, 'Rolling'], ['300', 'Rolling'], [Infinity, 'Rolling']]) {
+        assert.equal(readMuseUsage({subs_usage: {window: {used_percent: 0, window_duration_mins: minutes}}})
+            .data.sessionShortLabel, label);
+    }
+    assert.deepEqual(readMuseUsage({subs_usage: {weekly: {used_percent: 0, resets_at: 'bad'}}}).present,
+        {session: false, weekly: true});
 });

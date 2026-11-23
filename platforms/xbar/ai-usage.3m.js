@@ -16,10 +16,12 @@
 import {createClaudeProvider} from '../../core/providers/claude.js';
 import {createCodexProvider} from '../../core/providers/codex.js';
 import {createMeridianProvider} from '../../core/providers/meridian.js';
+import {createMuseProvider} from '../../core/providers/muse.js';
 import {createProviderSlot} from '../../core/provider-slot.js';
 import {summarize} from '../../core/summary.js';
 import {buildUsageViewModel} from '../../core/view-model.js';
 import {createNodeFetch, readTextFile} from '../node/runtime.js';
+import {createCodexCredentialReader, createMuseCredentialReader} from '../node/omp-auth.js';
 import {renderFailure, renderPlugin} from './render.js';
 
 // Set to true to show the model-scoped Fable cap as a third row, for Claude
@@ -36,8 +38,9 @@ async function collect() {
 
     const providers = [
         createClaudeProvider(deps),
-        createCodexProvider(deps),
+        createCodexProvider({...deps, readCodexCredential: createCodexCredentialReader({dbPath: process.env.OMP_AUTH_DB})}),
         createMeridianProvider({fetch, baseUrl: MERIDIAN_URL || process.env.MERIDIAN_URL}),
+        createMuseProvider({fetch, readMuseCredential: createMuseCredentialReader({dbPath: process.env.OMP_AUTH_DB})}),
     ];
     const at = new Date().toISOString();
 

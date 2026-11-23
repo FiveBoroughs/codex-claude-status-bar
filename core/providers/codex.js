@@ -56,5 +56,25 @@ export const codexSpec = {
 };
 
 export function createCodexProvider(options = {}) {
-    return createUsageProvider(codexSpec, options);
+    const {readCodexCredential, ...providerOptions} = options;
+
+    // OMP owns rotation of its credentials, so they are used read-only and
+    // never enter the CLI file's refresh path.
+    if (typeof readCodexCredential === 'function' && typeof providerOptions.readCredentialTokens !== 'function') {
+        providerOptions.readCredentialTokens = async () => {
+            const bundle = await readCodexCredential();
+            if (!bundle?.accessToken)
+                return null;
+
+            return {
+                accessToken: bundle.accessToken,
+                refreshToken: null,
+                expiresAt: null,
+                accountId: bundle.accountId ?? null,
+                refreshable: false,
+            };
+        };
+    }
+
+    return createUsageProvider(codexSpec, providerOptions);
 }

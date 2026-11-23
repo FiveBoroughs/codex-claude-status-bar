@@ -14,6 +14,7 @@ const PROVIDERS = [
     {key: 'claude', label: 'Claude'},
     {key: 'codex', label: 'Codex'},
     {key: 'meridian', label: 'Meridian'},
+    {key: 'muse', label: 'Muse Code'},
 ];
 
 const WINDOWS = [
@@ -96,6 +97,9 @@ export function createThresholdNotifier(options = {}) {
                 if (!Number.isFinite(remainingPct))
                     continue;
 
+                const windowLabel = provider.key === 'muse' && windowDef.key === 'session'
+                    ? providerData.sessionShortLabel || 'Rolling'
+                    : windowDef.label;
                 const resetsAtIso = typeof providerData[windowDef.resetKey] === 'string' && providerData[windowDef.resetKey].length > 0
                     ? providerData[windowDef.resetKey]
                     : null;
@@ -119,7 +123,7 @@ export function createThresholdNotifier(options = {}) {
 
                 if (wasReset && shouldNotifyReset()) {
                     notifyFn(
-                        `${provider.label} ${windowDef.label} limit reset`,
+                        `${provider.label} ${windowLabel} limit reset`,
                         `${Math.round(remainingPct)}% available again — next reset ${formatResetMoment(resetsAtIso)}`,
                         provider.key,
                     );
@@ -130,7 +134,7 @@ export function createThresholdNotifier(options = {}) {
                     && remainingPct < thresholdPct;
 
                 if (crossedThreshold && !windowState.hasNotifiedBelowThreshold) {
-                    const title = `${provider.label} ${windowDef.label} low`;
+                    const title = `${provider.label} ${windowLabel} low`;
                     const body = `${Math.round(remainingPct)}% remaining — resets ${formatResetMoment(resetsAtIso)}`;
 
                     notifyFn(title, body, provider.key);

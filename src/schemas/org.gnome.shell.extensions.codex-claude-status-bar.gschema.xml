@@ -6,7 +6,7 @@
       <default>true</default>
       <summary>Notify when a usage window resets</summary>
       <description>
-        When true, a desktop notification fires once a 5h or 7d window hands its
+        When true, a desktop notification fires once a rolling or 7d window hands its
         quota back (detected as a jump in remaining %, since Codex's reset
         timestamp slides forward while the window is unused).
       </description>
@@ -33,6 +33,23 @@
       <description>
         When false, the Meridian icon and percentages are hidden from the top
         bar. The Meridian section stays in the popup.
+      </description>
+    </key>
+    <key name="show-muse" type="b">
+      <default>true</default>
+      <summary>Show the Muse Code group in the panel</summary>
+      <description>
+        When false, the Muse Code icon and percentages are hidden from the top
+        bar. The Muse Code section stays in the popup.
+      </description>
+    </key>
+    <key name="omp-auth-db" type="s">
+      <default>'~/.omp/agent/agent.db'</default>
+      <summary>OMP authentication database path</summary>
+      <description>
+        Codex and Muse Code read their existing OMP OAuth credentials from
+        this SQLite database using sqlite3 in read-only mode. A leading ~/
+        expands to the home directory. Takes effect on the next poll.
       </description>
     </key>
     <key name="meridian-url" type="s">
@@ -62,6 +79,15 @@
       <summary>Which Meridian windows to show in the panel</summary>
       <description>
         'both' shows 5h and 7d, 'session' shows only 5h, 'weekly' shows only 7d.
+      </description>
+    </key>
+    <key name="muse-panel-windows" type="s">
+      <default>'both'</default>
+      <summary>Which Muse Code windows to show in the panel</summary>
+      <description>
+        'both' shows the rolling session and 7d windows, 'session' shows only the
+        rolling session, 'weekly' shows only 7d. An exhausted weekly allowance
+        hides the session and is shown even when 'session' is selected.
       </description>
     </key>
     <key name="panel-colorize" type="b">

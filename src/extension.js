@@ -15,6 +15,8 @@ import {createThresholdNotifier} from './lib/core/notifications.js';
 import {createClaudeProvider} from './lib/providers/claude.js';
 import {createCodexProvider} from './lib/providers/codex.js';
 import {createMeridianProvider} from './lib/providers/meridian.js';
+import {createMuseProvider} from './lib/providers/muse.js';
+import {createCodexCredentialReader, createMuseCredentialReader} from './lib/runtime/omp-auth.js';
 import {readTextFile} from './lib/runtime/fs.js';
 import {createFetch} from './lib/runtime/fetch.js';
 import {buildUsageViewModel} from './lib/ui/render.js';
@@ -218,6 +220,7 @@ class UsageIndicator extends PanelMenu.Button {
         this._claudePanel = buildProviderPanelGroup(extensionPath, this._claudeIconBasename(), true);
         this._codexPanel = buildProviderPanelGroup(extensionPath, this._codexIconBasename());
         this._meridianPanel = buildProviderPanelGroup(extensionPath, this._meridianIconBasename(), true);
+        this._musePanel = buildProviderPanelGroup(extensionPath, this._museIconBasename());
 
         this._panelDivider = new St.Label({
             text: ' │ ',
@@ -231,11 +234,19 @@ class UsageIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
+        this._museDivider = new St.Label({
+            text: ' │ ',
+            style_class: 'usage-panel-divider',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
         this._panelBox.add_child(this._claudePanel.group);
         this._panelBox.add_child(this._panelDivider);
         this._panelBox.add_child(this._codexPanel.group);
         this._panelBox.add_child(this._meridianDivider);
         this._panelBox.add_child(this._meridianPanel.group);
+        this._panelBox.add_child(this._museDivider);
+        this._panelBox.add_child(this._musePanel.group);
 
         this._fallbackLabel = new St.Label({
             text: '--',
@@ -280,9 +291,11 @@ class UsageIndicator extends PanelMenu.Button {
             'show-claude',
             'show-codex',
             'show-meridian',
+            'show-muse',
             'claude-panel-windows',
             'codex-panel-windows',
             'meridian-panel-windows',
+            'muse-panel-windows',
         ]) {
             this._panelSettingIds.push(this._settings.connect(`changed::${key}`, () => {
                 this._updateProviderOrnaments();
@@ -323,6 +336,10 @@ class UsageIndicator extends PanelMenu.Button {
         return `meridian${this._iconStyleSuffix()}.png`;
     }
 
+    _museIconBasename() {
+        return `muse${this._iconStyleSuffix()}.svg`;
+    }
+
     _refreshIconStyles() {
         setInlineStyle(
             this._claudePanel.icon,
@@ -335,6 +352,10 @@ class UsageIndicator extends PanelMenu.Button {
         setInlineStyle(
             this._meridianPanel.icon,
             iconStyleForFile(this._extensionPath, this._meridianIconBasename()),
+        );
+        setInlineStyle(
+            this._musePanel.icon,
+            iconStyleForFile(this._extensionPath, this._museIconBasename()),
         );
     }
 
@@ -385,6 +406,9 @@ class UsageIndicator extends PanelMenu.Button {
         this._meridianSection = createServiceSection(3);
         this._meridianSection.nameLabel.text = 'Meridian';
 
+        this._museSection = createServiceSection();
+        this._museSection.nameLabel.text = 'Muse Code';
+
         const separator = new St.Widget({style_class: 'usage-separator'});
         separator.set_x_expand(true);
 
@@ -401,6 +425,7 @@ class UsageIndicator extends PanelMenu.Button {
         this._popupBox.add_child(this._codexSection.container);
         this._popupBox.add_child(this._claudeSection.container);
         this._popupBox.add_child(this._meridianSection.container);
+        this._popupBox.add_child(this._museSection.container);
         this._popupBox.add_child(separator);
         this._popupBox.add_child(footerRow);
 
@@ -467,11 +492,18 @@ class UsageIndicator extends PanelMenu.Button {
             windowsKey: 'meridian-panel-windows',
             extras: submenu => this._addMeridianExtras(submenu),
         });
+        this._museSubmenu = this._buildProviderSubmenu({
+            title: 'Muse Code',
+            provider: 'muse',
+            showKey: 'show-muse',
+            windowsKey: 'muse-panel-windows',
+            sessionLabel: 'Session',
+        });
     }
 
     // One submenu per provider: whether it appears in the top bar at all, and
     // which of its windows are shown there.
-    _buildProviderSubmenu({title, provider, showKey, windowsKey, extras}) {
+    _buildProviderSubmenu({title, provider, showKey, windowsKey, extras, sessionLabel = '5h'}) {
         const submenu = new PopupMenu.PopupSubMenuMenuItem(title);
 
         const showItem = new PopupMenu.PopupSwitchMenuItem(
@@ -487,8 +519,8 @@ class UsageIndicator extends PanelMenu.Button {
         submenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         const options = [
-            {key: 'both', label: '5h + 7d'},
-            {key: 'session', label: '5h only'},
+            {key: 'both', label: `${sessionLabel} + 7d`},
+            {key: 'session', label: `${sessionLabel} only`},
             {key: 'weekly', label: '7d only'},
         ];
 
@@ -578,10 +610,12 @@ class UsageIndicator extends PanelMenu.Button {
         this._updateWindowOrnaments('claude', 'claude-panel-windows');
         this._updateWindowOrnaments('codex', 'codex-panel-windows');
         this._updateWindowOrnaments('meridian', 'meridian-panel-windows');
+        this._updateWindowOrnaments('muse', 'muse-panel-windows');
 
         this._showItems.claude?.setToggleState(this._settings.get_boolean('show-claude'));
         this._showItems.codex?.setToggleState(this._settings.get_boolean('show-codex'));
         this._showItems.meridian?.setToggleState(this._settings.get_boolean('show-meridian'));
+        this._showItems.muse?.setToggleState(this._settings.get_boolean('show-muse'));
         this._fableItem?.setToggleState(this._settings.get_boolean('show-claude-fable'));
         this._meridianFableItem?.setToggleState(this._settings.get_boolean('show-meridian-fable'));
         this._colorizeItem?.setToggleState(this._settings.get_boolean('panel-colorize'));
@@ -641,7 +675,7 @@ class UsageIndicator extends PanelMenu.Button {
         // blockage instead of leaving the provider blank.
         const showWeekly = (windowsMode !== 'session' || !sessionWindow) && this._hasWindowData(weeklyWindow);
 
-        setText(panel.sessionLabel, `5h ${this._formatPctText(sessionWindow)}`);
+        setText(panel.sessionLabel, `${sessionWindow?.shortLabel ?? '5h'} ${this._formatPctText(sessionWindow)}`);
         setText(panel.weeklyLabel, `7d ${this._formatPctText(weeklyWindow)}`);
 
         const sessionColor = colorize ? pctColor(sessionWindow?.remainingPct) : '';
@@ -699,6 +733,7 @@ class UsageIndicator extends PanelMenu.Button {
         const codex = vm.services[0];
         const claude = vm.services[1];
         const meridian = vm.services[2];
+        const muse = vm.services[3];
 
         const showClaude = this._applyProviderPanel(
             this._claudePanel, claude, colorize, 'show-claude', 'claude-panel-windows',
@@ -709,11 +744,15 @@ class UsageIndicator extends PanelMenu.Button {
         const showMeridian = this._applyProviderPanel(
             this._meridianPanel, meridian, colorize, 'show-meridian', 'meridian-panel-windows',
         );
+        const showMuse = this._applyProviderPanel(
+            this._musePanel, muse, colorize, 'show-muse', 'muse-panel-windows',
+        );
 
         this._panelDivider.visible = showClaude && showCodex;
         this._meridianDivider.visible = showMeridian && (showClaude || showCodex);
+        this._museDivider.visible = showMuse && (showClaude || showCodex || showMeridian);
 
-        if (!showClaude && !showCodex && !showMeridian) {
+        if (!showClaude && !showCodex && !showMeridian && !showMuse) {
             this._panelBox.hide();
             this._fallbackLabel.show();
             setText(this._fallbackLabel, '--');
@@ -750,7 +789,9 @@ class UsageIndicator extends PanelMenu.Button {
         if (!this._popupBuilt)
             return;
 
-        const sections = [this._codexSection, this._claudeSection, this._meridianSection];
+        const sections = [
+            this._codexSection, this._claudeSection, this._meridianSection, this._museSection,
+        ];
 
         for (let i = 0; i < vm.services.length; i++) {
             const svc = vm.services[i];
@@ -869,11 +910,20 @@ export default class UsageLimitsExtension extends Extension {
         const codex = createCodexProvider({
             fetch: fetchImpl,
             readTextFile: fileReader,
+            readCodexCredential: createCodexCredentialReader({
+                getDbPath: () => this._settings?.get_string('omp-auth-db'),
+            }),
         });
         this._settings = this.getSettings();
         const meridian = createMeridianProvider({
             fetch: fetchImpl,
             getBaseUrl: () => this._settings?.get_string('meridian-url'),
+        });
+        const muse = createMuseProvider({
+            fetch: fetchImpl,
+            readMuseCredential: createMuseCredentialReader({
+                getDbPath: () => this._settings?.get_string('omp-auth-db'),
+            }),
         });
 
         this._thresholdNotifier = createThresholdNotifier({
@@ -884,7 +934,7 @@ export default class UsageLimitsExtension extends Extension {
         });
 
         this._scheduler = createScheduler({
-            providers: {claude, codex, meridian},
+            providers: {claude, codex, meridian, muse},
             onUpdate: (summary) => {
                 this._indicator?.render(summary);
                 this._thresholdNotifier?.evaluate(summary);
@@ -902,6 +952,8 @@ export default class UsageLimitsExtension extends Extension {
     _notificationIcon(providerKey) {
         if (providerKey === 'meridian')
             return Gio.icon_new_for_string(`${this.path}/icons/meridian.png`);
+        if (providerKey === 'muse')
+            return Gio.icon_new_for_string(`${this.path}/icons/muse.svg`);
 
         const basename = providerKey === 'codex'
             ? 'codex.svg'
